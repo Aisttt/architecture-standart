@@ -1,0 +1,63 @@
+@startuml containers-diagram-rates
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров: Передача ставок в кол-центры - Банк "Стандарт"
+
+Person(credit_staff, "Сотрудники кредитного отдела", "Рассчитывают ставки депозитов")
+Person(deposit_staff, "Сотрудники депозитного отдела", "Обновляют ставки в системах")
+Person(internal_operators, "Операторы кол-центра банка", "200 операторов")
+Person(partner_operators, "Операторы партнёрского кол-центра", "100 операторов")
+
+System_Boundary(rates_system_boundary, "Система управления ставками") {
+    Container(rates_api, "Rates Management API", "Spring Boot", "REST API для управления ставками")
+    Container(rates_db, "Rates Database", "PostgreSQL", "Хранит актуальные ставки и историю изменений")
+    Container(excel_processor, "Excel Processor", "Apache POI", "Обрабатывает Excel файлы со ставками")
+    Container(email_gateway, "Email Gateway", "Java Mail API", "Получает Excel файлы по email")
+    Container(sftp_client, "SFTP Client", "JSch", "Загружает файлы партнёрам")
+    Container(rates_scheduler, "Rates Scheduler", "Spring Scheduler", "Периодическая синхронизация ставок")
+}
+
+System_Boundary(call_center_boundary, "Система кол-центра банка") {
+    Container(call_center_ui, "Call Center UI", "React.js", "Интерфейс операторов с отображением ставок")
+    Container(call_center_api, "Call Center API", "Spring Boot", "API системы кол-центра")
+    Container(call_center_db, "Call Center DB", "PostgreSQL", "Кэширует ставки для быстрого доступа")
+}
+
+System_Ext(abs_system, "АБС", "Oracle DB + Delphi. Источник данных о депозитных продуктах")
+System_Ext(partner_system, "Партнёрская система", "Внешняя система партнёра")
+System_Ext(email_system, "Email система", "Корпоративная почта")
+System_Ext(sftp_server, "SFTP сервер", "Файловый сервер для партнёра")
+System_Ext(monitoring, "Мониторинг", "ELK Stack + Grafana")
+
+' Взаимодействия пользователей
+Rel(credit_staff, email_system, "Отправляет Excel файлы", "Email")
+Rel(deposit_staff, rates_api, "Обновляет ставки", "HTTPS/REST")
+Rel(internal_operators, call_center_ui, "Просматривает ставки", "HTTPS")
+Rel(partner_operators, partner_system, "Использует ставки", "Internal UI")
+
+' Email обработка
+Rel(email_gateway, email_system, "Получает Excel файлы", "IMAP/POP3")
+Rel(email_gateway, excel_processor, "Передаёт файлы", "File System")
+Rel(excel_processor, rates_api, "Обновляет ставки", "REST API")
+
+' Внутренние связи Rates System
+Rel(rates_api, rates_db, "Читает/записывает ставки", "JDBC")
+Rel(rates_scheduler, rates_api, "Запускает синхронизацию", "Internal")
+Rel(rates_scheduler, abs_system, "Синхронизирует данные", "REST API")
+
+' SFTP экспорт
+Rel(rates_scheduler, sftp_client, "Генерирует файлы", "Internal")
+Rel(sftp_client, sftp_server, "Загружает файлы", "SFTP")
+Rel(sftp_server, partner_system, "Передаёт файлы", "SFTP")
+
+' Call Center интеграция
+Rel(call_center_api, rates_api, "Получает актуальные ставки", "REST API")
+Rel(call_center_ui, call_center_api, "Запрашивает данные", "REST API")
+Rel(call_center_api, call_center_db, "Кэширует ставки", "JDBC")
+
+' Мониторинг
+Rel(rates_api, monitoring, "Отправляет метрики", "HTTP")
+Rel(call_center_api, monitoring, "Отправляет логи", "HTTP")
+
+SHOW_LEGEND()
+@enduml

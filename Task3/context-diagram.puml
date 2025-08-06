@@ -1,0 +1,45 @@
+@startuml context-diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Диаграмма контекста MVP депозитов - Банк "Стандарт"
+
+Person(new_customers, "Новые клиенты", "Потенциальные клиенты банка, которые хотят открыть депозит")
+Person(existing_customers, "Существующие клиенты", "Клиенты банка с открытыми счетами, имеющие доступ к интернет-банку")
+Person(call_managers, "Менеджеры кол-центра", "200 операторов внутреннего кол-центра, консультируют клиентов по депозитам")
+Person(back_office_managers, "Менеджеры бэк-офиса", "50 сотрудников отдела депозитных продуктов, обрабатывают заявки в АБС")
+
+System(bank_system, "Банк Стандарт MVP Онлайн Депозиты", "Позволяет клиентам подавать заявки на депозиты через сайт и интернет-банк. Обрабатывает заявки в бэк-офисе и отправляет уведомления")
+
+System_Ext(abs_system, "АБС", "Автоматизированная банковская система. Oracle DB + Delphi клиенты. Центральная система учёта банковских операций")
+System_Ext(sms_gateway, "СМС-шлюз", "Система отправки СМС уведомлений через телеком-оператора")
+System_Ext(telecom_operator, "Телеком-оператор", "Внешний сервис отправки СМС")
+System_Ext(partner_call_center, "Партнёрский кол-центр", "Внешняя система кол-центра (изолирована от банковских систем)")
+
+' Взаимодействия новых клиентов
+Rel(new_customers, bank_system, "Подаёт заявку на депозит", "HTTPS")
+Rel(bank_system, call_managers, "Уведомляет о новой заявке", "Внутренняя система")
+Rel(call_managers, new_customers, "Звонит для консультации", "Телефон")
+
+' Взаимодействия существующих клиентов
+Rel(existing_customers, bank_system, "Подаёт заявку на депозит", "HTTPS")
+Rel(bank_system, existing_customers, "Отправляет СМС-код", "СМС")
+
+' Обработка заявок в бэк-офисе
+Rel(bank_system, back_office_managers, "Передаёт заявки для обработки", "Внутренняя система")
+Rel(back_office_managers, abs_system, "Обрабатывает заявки", "Delphi Desktop")
+
+' Интеграции с внешними системами
+Rel(bank_system, abs_system, "Синхронизирует данные о ставках", "Периодическая синхронизация")
+Rel(abs_system, bank_system, "Предоставляет данные о клиентах и ставках", "Batch/File")
+
+Rel(bank_system, sms_gateway, "Отправляет СМС уведомления", "HTTP API")
+Rel(sms_gateway, telecom_operator, "Отправляет СМС", "HTTP API")
+Rel(telecom_operator, existing_customers, "Доставляет СМС", "СМС")
+Rel(telecom_operator, new_customers, "Доставляет СМС", "СМС")
+
+' Партнёрский кол-центр (изолированный)
+Rel(new_customers, partner_call_center, "Звонит для консультации", "Телефон")
+Rel_Back(partner_call_center, new_customers, "Консультирует по скрипту", "Телефон")
+
+SHOW_LEGEND()
+@enduml

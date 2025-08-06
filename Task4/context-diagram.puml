@@ -1,0 +1,46 @@
+@startuml context-diagram-rates
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Диаграмма контекста: Передача ставок в кол-центры - Банк "Стандарт"
+
+Person(credit_staff, "Сотрудники кредитного отдела", "Рассчитывают ставки депозитов на основе ставки рефинансирования ЦБ и кредитных рисков банка")
+Person(deposit_staff, "Сотрудники депозитного отдела", "Получают расчёты ставок от кредитного отдела и обновляют их в системах банка")
+Person(internal_operators, "Операторы кол-центра банка", "200 внутренних операторов консультируют клиентов по актуальным ставкам депозитов")
+Person(partner_operators, "Операторы партнёрского кол-центра", "100 внешних операторов получают ставки через файлы для консультирования клиентов")
+Person(customers, "Клиенты банка", "Звонят в кол-центры за консультациями по депозитам. Ожидается рост звонков от пожилых клиентов")
+
+System(rates_management_system, "Система управления ставками по депозитам", "Централизованное управление актуальными ставками с интеграцией в Excel процесс и распространением во все каналы обслуживания")
+
+System_Ext(abs_system, "АБС", "Автоматизированная банковская система. Источник данных о текущих депозитных продуктах, клиентской базе и актуальных условиях")
+System_Ext(internal_call_system, "Система кол-центра банка", "React.js + Spring Boot + PostgreSQL. Получает актуальные ставки через REST API и отображает их операторам")
+System_Ext(partner_call_system, "Партнёрская система кол-центра", "Внешняя система партнёра. Получает файлы со ставками через SFTP соединение")
+System_Ext(email_system, "Email система", "Корпоративная почта для передачи Excel файлов между отделами")
+System_Ext(sftp_server, "SFTP сервер", "Защищённый файловый сервер для передачи ставок партнёрскому кол-центру")
+System_Ext(monitoring_system, "Система мониторинга", "ELK Stack + Grafana. Отслеживает синхронизацию ставок и алертит при сбоях")
+
+' Взаимодействия сотрудников с системой управления ставками
+Rel(credit_staff, rates_management_system, "Отправляет Excel файлы со ставками", "Email attachment")
+Rel(deposit_staff, rates_management_system, "Обновляет ставки в системе", "Web интерфейс/API")
+
+' Взаимодействия операторов с системами
+Rel(internal_operators, internal_call_system, "Использует для консультирования", "Web интерфейс")
+Rel(partner_operators, partner_call_system, "Использует для консультирования", "Внешний интерфейс")
+
+' Взаимодействия клиентов с операторами
+Rel(customers, internal_operators, "Звонит за консультациями", "Телефон")
+Rel(customers, partner_operators, "Звонит за консультациями", "Телефон")
+
+' Интеграции системы управления ставками
+Rel(rates_management_system, abs_system, "Синхронизирует данные о депозитных продуктах", "REST API/Периодически")
+Rel(rates_management_system, internal_call_system, "Передаёт актуальные ставки", "REST API/Real-time")
+Rel(rates_management_system, partner_call_system, "Передаёт файлы со ставками", "SFTP/Периодически")
+Rel(rates_management_system, email_system, "Получает Excel файлы", "IMAP/POP3")
+Rel(rates_management_system, sftp_server, "Загружает файлы для партнёра", "SFTP Protocol")
+Rel(rates_management_system, monitoring_system, "Отправляет метрики и логи", "Prometheus/ELK")
+
+' Дополнительные потоки
+Rel(credit_staff, deposit_staff, "Передаёт Excel файлы", "Email")
+Rel(sftp_server, partner_call_system, "Передаёт файлы", "SFTP Client")
+
+SHOW_LEGEND()
+@enduml
