@@ -1,0 +1,78 @@
+@startuml containers-diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров MVP депозитов - Банк "Стандарт"
+
+Person(customers, "Клиенты", "Новые и существующие клиенты банка")
+Person(managers, "Менеджеры", "Кол-центр и бэк-офис")
+
+System_Boundary(bank_boundary, "Банк Стандарт - MVP Система депозитов") {
+    Container(website, "Сайт банка", "PHP + React.js", "Показывает актуальные ставки, принимает заявки от новых клиентов")
+    
+    Container_Boundary(internet_bank_boundary, "Интернет-банк") {
+        Container(ib_web_ui, "Web UI", "ASP.NET MVC 4.5", "Пользовательский интерфейс для существующих клиентов")
+        Container(ib_deposits_api, "Deposits API", "ASP.NET Web API", "Новый API для работы с депозитами")
+        Container(ib_database, "База данных ИБ", "MS SQL Server", "Хранит данные пользователей и сессий")
+    }
+    
+    Container(api_gateway, "API Gateway", "Nginx + Kong", "Централизованная точка входа, маршрутизация запросов")
+    
+    Container(deposits_service, "Deposits Service", "Spring Boot", "Управление заявками на депозиты, бизнес-логика")
+    Container(rates_service, "Rates Service", "Spring Boot", "Кэширование и управление ставками по депозитам")
+    Container(notification_service, "Notification Service", "Spring Boot", "Отправка уведомлений клиентам")
+    
+    Container(message_queue, "Message Queue", "Apache Kafka", "Асинхронная обработка сообщений между сервисами")
+    Container(redis_cache, "Redis Cache", "Redis", "Кэширование ставок и временных данных")
+    
+    Container(deposits_db, "Deposits DB", "PostgreSQL", "Хранит заявки на депозиты и связанные данные")
+    Container(rates_db, "Rates DB", "PostgreSQL", "Хранит исторические данные о ставках")
+}
+
+System_Boundary(abs_boundary, "АБС - Автоматизированная банковская система") {
+    Container(abs_core, "АБС Ядро", "Oracle DB + PL/SQL", "Основная база данных банка, учёт операций")
+    Container(abs_desktop, "АБС Desktop", "Delphi", "Рабочие места менеджеров бэк-офиса")
+    Container(abs_rates_calc, "Расчёт ставок", "Excel + Email", "Ручной расчёт ставок сотрудниками")
+}
+
+System_Ext(sms_gateway, "СМС-шлюз", "HTTP API", "Система отправки СМС уведомлений")
+System_Ext(telecom, "Телеком-оператор", "SMS API", "Внешний сервис отправки СМС")
+
+' Взаимодействия клиентов
+Rel(customers, website, "Подаёт заявку на депозит", "HTTPS")
+Rel(customers, ib_web_ui, "Авторизуется и подаёт заявку", "HTTPS")
+
+' Веб-приложения к API Gateway
+Rel(website, api_gateway, "Отправляет заявку", "HTTPS/REST")
+Rel(ib_deposits_api, api_gateway, "Отправляет заявку", "HTTPS/REST")
+Rel(ib_web_ui, ib_deposits_api, "Вызывает API депозитов", "HTTP/REST")
+Rel(ib_deposits_api, ib_database, "Читает данные пользователя", "SQL")
+
+' API Gateway к микросервисам
+Rel(api_gateway, deposits_service, "Маршрутизирует запросы", "HTTP/REST")
+Rel(api_gateway, rates_service, "Запрашивает ставки", "HTTP/REST")
+
+' Микросервисы между собой
+Rel(deposits_service, message_queue, "Публикует события", "Kafka")
+Rel(notification_service, message_queue, "Подписывается на события", "Kafka")
+Rel(rates_service, message_queue, "Публикует обновления ставок", "Kafka")
+
+Rel(deposits_service, deposits_db, "Сохраняет заявки", "SQL")
+Rel(rates_service, rates_db, "Сохраняет ставки", "SQL")
+Rel(rates_service, redis_cache, "Кэширует актуальные ставки", "Redis Protocol")
+
+' Интеграция с АБС
+Rel(rates_service, abs_core, "Синхронизирует ставки", "Batch/SFTP")
+Rel(managers, abs_desktop, "Обрабатывает заявки", "Desktop App")
+Rel(abs_desktop, abs_core, "Читает/записывает данные", "Oracle Net")
+Rel(managers, abs_rates_calc, "Рассчитывает ставки", "Excel + Email")
+
+' Уведомления
+Rel(notification_service, sms_gateway, "Отправляет СМС", "HTTP API")
+Rel(sms_gateway, telecom, "Передаёт СМС", "HTTP API")
+Rel(telecom, customers, "Доставляет СМС", "SMS")
+
+' Обратная связь от АБС
+Rel(abs_core, deposits_service, "Уведомляет об изменении статуса", "Webhook/File")
+
+SHOW_LEGEND()
+@enduml
